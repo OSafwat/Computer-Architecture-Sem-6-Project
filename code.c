@@ -168,7 +168,7 @@ void execute(int instruction)
     R1 = R1 | R2;
     break;
   case (0b111):
-    // PC = concat between R1 and R2
+    PC = (R1<<8) | R2;
     break;
   case (0b1000):
     R1 = R1 << Imm | R1 >> 8 - Imm;
