@@ -1,88 +1,21 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 
 short int instructionMem[1024]; // every instruction will be stored in decimal format
 int8_t dataMem[2048];           // all Data will also be stored in decimal formats
 int8_t GPRS[64];
 int8_t SREG[8];
 short int PC;
+int size;
 long Cycle = 0; // this determines what cycle we are in right now used for scheduling the different tasks.
+char *instructionMap[12] = {"ADD", "SUB", "MUL", "LDI", "BEQZ", "AND", "OR", "JR", "SLC", "SRC", "LB", "SB"};
+int counter = 1;
 
-void GetInstrucions(FILE *fptr)
-{ // i believe this will only be called in the beginning to store instructions in MEM, but idk yet
-  fptr = fopen("text.txt", "r");
-  char stra[9999];
-  while (fgets(stra, sizeof(stra), fptr) != NULL)
-    printf("%s", stra);
-  fclose(fptr);
-  return 0;
-}
-
-short int encode(char *inst)
-{ // instructions must be encoded (as bin, dec, or String) before it can be used
-  char *temp = strtok(inst, " ");
-  char *ans = "";
-  if (strcmp(temp, "ADD") == 0)
-    strcat(ans, "0000");
-  else if (strcmp(temp, "SUB") == 0)
-    strcat(ans, "0001");
-  else if (strcmp(temp, "MUL") == 0)
-    strcat(ans, "0010");
-  else if (strcmp(temp, "LDI") == 0)
-    strcat(ans, "0011");
-  else if (strcmp(temp, "BEZQ") == 0)
-    strcat(ans, "0100");
-  else if (strcmp(temp, "AND") == 0)
-    strcat(ans, "0101");
-  else if (strcmp(temp, "OR") == 0)
-    strcat(ans, "0110");
-  else if (strcmp(temp, "JR") == 0)
-    strcat(ans, "0111");
-  else if (strcmp(temp, "SLC") == 0)
-    strcat(ans, "1000");
-  else if (strcmp(temp, "SRC") == 0)
-    strcat(ans, "1001");
-  else if (strcmp(temp, "LB") == 0)
-    strcat(ans, "1010");
-  else if (strcmp(temp, "SB") == 0)
-    strcat(ans, "1011");
-
-  strcat(ans, intToBinaryString(strtok(NULL, " "))); // For R1
-  strcat(ans, intToBinaryString(strtok(NULL, " "))); // For R2/Imm
-  // now we have the full instruction encoded into binary in String format
-  return (binaryStringToShort(ans));
-}
-
-char *intToBinaryString(int num)
-{ // ts AI, i didnt check its correctness
-  if (num == 0)
-  {
-    char *binaryString = malloc(2);
-    strcpy(binaryString, "0");
-    return binaryString;
-  }
-
-  int bits = 0;
-  unsigned int temp = (num < 0) ? -num : num;
-  while (temp)
-  {
-    temp >>= 1;
-    bits++;
-  }
-
-  char *binaryString = malloc(bits + 1);
-  if (!binaryString)
-    return NULL;
-
-  binaryString[bits] = '\0';
-  for (int i = bits - 1; i >= 0; i--)
-  {
-    binaryString[i] = (num & 1) + '0';
-    num >>= 1;
-  }
-  return binaryString;
-}
+short int instructionToBeDecoded = -1;
+short int instructionToBeExecuted[3] = {-1, -1, -1};
 
 short int binaryStringToShort(const char *binaryString)
 { // ts Also AI, also didnt check its correctness
@@ -119,73 +52,375 @@ short int binaryStringToShort(const char *binaryString)
   return (short int)(result * sign);
 }
 
-short int instructionFetch(int PC)
-{
-  short int instruction;
-  instruction = instructionMem[PC];
-  return instruction;
-} // ts kinda useless 💔💔💔
+char *intToBinaryString(int num)
+{ // ts AI, i didnt check its correctness
+  if (num == 0)
+  {
+    char *binaryString = malloc(2);
+    strcpy(binaryString, "0");
+    return binaryString;
+  }
 
-void instructionDecode(short int instruction)
-{
-  int opcode;
-  int R1;
-  int R2_Im; // this can be either immediate or R2 according to instruction type since they both occupy up the same bits
+  int bits = 0;
+  unsigned int temp = (num < 0) ? -num : num;
+  while (temp)
+  {
+    temp >>= 1;
+    bits++;
+  }
 
-  opcode = (instruction >> 12) & 0b1111;
-  R1 = (instruction >> 6) & 0b111111;
-  R2_Im = (instruction) & 0b111111;
+  char *binaryString = malloc(bits + 1);
+  if (!binaryString)
+    return NULL;
+
+  binaryString[bits] = '\0';
+  for (int i = bits - 1; i >= 0; i--)
+  {
+    binaryString[i] = (num & 1) + '0';
+    num >>= 1;
+  }
+  return binaryString;
+}
+char *RToBinaryString(const char *RString)
+{
+  if (RString == NULL || RString[0] != 'R')
+  {
+    return NULL; // Handle invalid input
+  }
+
+  // Extract the number part of the string
+  char *sub = (char *)malloc(strlen(RString));
+  char *numberString = strncpy(sub, RString + 1, strlen(RString) - 1); // Pointer to the character after 'R'
+  long number = strtol(numberString, NULL, 10);                        // Convert to long
+
+  if (number == 0)
+  {
+    char *binaryString = malloc(4);
+    if (binaryString == NULL)
+      return NULL;
+    strcpy(binaryString, "0");
+    return binaryString;
+  }
+
+  if (number < 0)
+  {
+    return NULL;
+  }
+  // Calculate the number of bits needed (optimized)
+  int bits = 0;
+  unsigned long temp = number;
+  while (temp)
+  {
+    temp >>= 1;
+    bits++;
+  }
+
+  // Handle the case where the number is 0
+  if (bits == 0)
+  {
+    bits = 1; // Need at least one bit for "0"
+  }
+
+  // Allocate memory for the binary string
+  char *binaryString = malloc(bits + 1); // +1 for the null terminator
+  if (binaryString == NULL)
+  {
+    return NULL; // Handle allocation failure
+  }
+
+  binaryString[6] = '\0'; // Null-terminate the string
+
+  // Convert the number to binary (most efficient)
+  int l = 0;
+  for (int i = 5; i >= 0; i--)
+    binaryString[5 - i] = (number & (1 << i)) ? '1' : '0';
+  return binaryString;
 }
 
-void execute(int instruction)
+short int encode(char *inst)
+{ // instructions must be encoded (as bin, dec, or String) before it can be used
+
+  char *temp = strtok(inst, " ");
+  printf("\n%s\n", temp);
+  char *ans;
+  ans[0] = '0';
+  if (strcmp(temp, "ADD") == 0)
+    ans = "0000";
+  else if (strcmp(temp, "SUB") == 0)
+    ans = "0001";
+  else if (strcmp(temp, "MUL") == 0)
+    ans = "0010";
+  else if (strcmp(temp, "LDI") == 0)
+    ans = "0011";
+  else if (strcmp(temp, "BEZQ") == 0)
+    ans = "0100";
+  else if (strcmp(temp, "AND") == 0)
+    ans = "0101";
+  else if (strcmp(temp, "OR") == 0)
+    ans = "0110";
+  else if (strcmp(temp, "JR") == 0)
+    ans = "0111";
+  else if (strcmp(temp, "SLC") == 0)
+    ans = "1000";
+  else if (strcmp(temp, "SRC") == 0)
+    ans = "1001";
+  else if (strcmp(temp, "LB") == 0)
+    ans = "1010";
+  else if (strcmp(temp, "SB") == 0)
+    ans = "1011";
+
+  char *check = strtok(NULL, " ");
+  printf("%s\n", check);
+  char *R1 = RToBinaryString(check);
+  check = strtok(NULL, " ");
+  printf("%s\n", check);
+  char *R2 = RToBinaryString(check);
+  printf("%s\n", R1);
+  printf("%s\n", R2);
+  printf("%s\n", ans);
+  char finalAns[17];
+  strcpy(finalAns, ans);
+  strcat(finalAns, R1);
+  strcat(finalAns, R2);
+  // For R1
+  // For R2/Imm
+  // now we have the full instruction encoded into binary in String format
+  return (binaryStringToShort(finalAns));
+}
+
+void GetInstructions(FILE *fptr)
+{ // i believe this will only be called in the beginning to store instructions in MEM, but idk yet
+  rewind(fptr);
+
+  char stra[9999];
+  int index = 0;
+  while (fgets(stra, sizeof(stra), fptr) != NULL)
+    instructionMem[index++] = encode(stra);
+  size = index;
+  fclose(fptr);
+}
+
+// char *GetInstruction(FILE *file, int line_number)
+// {
+//   if (file == NULL || line_number < 1)
+//     return NULL;
+
+//   static char buffer[99];
+//   int current_line = 1;
+
+//   rewind(file);
+
+//   while (fgets(buffer, sizeof(buffer), file))
+//   {
+//     if (current_line == line_number)
+//     {
+//       return buffer;
+//     }
+//     current_line++;
+//   }
+
+//   return NULL;
+// }
+
+void execute()
 { // Didnt implement SREG Flags!!!
-  int opcode;
-  int R1;
-  int R2;
-  int Imm;
+  int opcode = instructionToBeExecuted[0];
+  int R1 = instructionToBeExecuted[1];
+  int R2, Imm;
+  R2 = Imm = instructionToBeExecuted[2];
+  short int result = 0;
+  bool logicalOrArithmetic = true;
+  int8_t newValue = 0;
+  // the sign bit of the 2 before adding
+  // if equal, then check the sign bit of the result of adding
+  // if its different then overflow occured
+  if (opcode == -1)
+    return;
   switch (opcode)
   {
   case (0b0):
-    R1 += R2;
+    result = GPRS[R1] + GPRS[R2];
+    if (result & (1 << 8))
+      SREG[4] = 1;
+    newValue = result & ((1 << 8) - 1);
+    if (!(((GPRS[R1] ^ GPRS[R2]) & (1 << 7))) && (((newValue ^ GPRS[R2]) & (1 << 7))))
+      SREG[3] = 1;
+    GPRS[R1] = newValue;
     break;
   case (0b1):
-    R1 = R1 - R2;
+    result = GPRS[R1] - GPRS[R2];
+    if (result & (1 << 8))
+      SREG[4] = 1;
+    newValue = result & ((1 << 8) - 1);
+    if ((((GPRS[R1] ^ GPRS[R2]) & (1 << 7))) && !(((newValue ^ GPRS[R2]) & (1 << 7))))
+      SREG[3] = 1;
+    GPRS[R1] = newValue;
     break;
   case (0b10):
-    R1 *= R2;
+    result = GPRS[R1] * GPRS[R2];
+    GPRS[R1] *= GPRS[R2];
     break;
   case (0b11):
-    R1 = Imm;
+    logicalOrArithmetic = false;
+    GPRS[R1] = Imm;
     break;
   case (0b100):
+    logicalOrArithmetic = false;
     if (R1 == 0)
       PC += 1 + Imm;
     break;
   case (0b101):
-    R1 = R1 & R2;
+    result = GPRS[R1] & GPRS[R2];
+    GPRS[R1] &= GPRS[R2];
     break;
   case (0b110):
-    R1 = R1 | R2;
+    result = GPRS[R1] | GPRS[R2];
+    GPRS[R1] |= GPRS[R2];
     break;
   case (0b111):
-    PC = (R1<<8) | R2;
+    PC = (GPRS[R1] << 8) | GPRS[R2];
+    logicalOrArithmetic = false;
     break;
   case (0b1000):
-    R1 = R1 << Imm | R1 >> 8 - Imm;
+    result = (GPRS[R1] << Imm) | (GPRS[R1] >> (8 - Imm));
+    GPRS[R1] = (GPRS[R1] << Imm) | (GPRS[R1] >> (8 - Imm));
     break;
   case (0b1001):
-    R1 = R1 >> Imm | R1 << 8 - Imm;
+    result = (GPRS[R1] >> Imm) | (GPRS[R1] << (8 - Imm));
+    GPRS[R1] = (GPRS[R1] >> Imm) | (GPRS[R1] << (8 - Imm));
     break;
   case (0b1010):
-    R1 = dataMem[Imm];
+    logicalOrArithmetic = false;
+    GPRS[R1] = dataMem[Imm];
     break;
   case (0b1011):
+    logicalOrArithmetic = false;
     dataMem[Imm] = R1;
     break;
   }
+
+  if (logicalOrArithmetic)
+  {
+    if (result & (1 << 8))
+      SREG[2] = 1;
+    else
+      SREG[2] = 0;
+
+    if (!(result & ((1 << 8) - 1)))
+      SREG[0] = 1;
+    else
+      SREG[0] = 0;
+
+    SREG[1] = SREG[3] ^ SREG[2];
+  }
+
+  printf("Execute Stage: Instruction %d    \n", counter - 2);
 }
+
+void printinfo()
+{
+}
+// For each clock cycle, you need to print which instruction is in each stage, as well as, the values
+// that entered the stage, and the output of this stage.
+
+//  Moreover, if you changed the value of a location in the memory or the register file, you
+// need to print that this location or register (including R0) value has changed alongside the
+// new value (and in which stage did the value change).
+
+//  At the end of your program, you need to print the values of all registers (general and
+// special purpose including the PC and SREG), and the full instruction and data memory
+// locations.
+long binaryStringToNumber(const char *binaryString)
+{
+  if (binaryString == NULL || binaryString[0] == '\0')
+  {
+    return 0; // Handle null or empty string
+  }
+
+  long number = 0;
+  size_t length = strlen(binaryString);
+
+  for (size_t i = 0; i < length; i++)
+  {
+    if (binaryString[i] != '0' && binaryString[i] != '1')
+    {
+      return -1; // Handle invalid characters
+    }
+    number = (number << 1) | (binaryString[i] - '0');
+  }
+  return number;
+}
+
+int binaryToInt(int x)
+{
+  int num = 0;
+  for (int i = 16; i >= 0; i--)
+    num += (1 << i) * ((x >> (i)) & 1);
+  return num;
+}
+
+void instructionDecode()
+{
+  short int instruction = instructionToBeDecoded;
+  int opcode;
+  int R1;
+  int R2_Im; // this can be either immediate or R2 according to instruction type since they both occupy up the same bits
+  if (instruction == -1)
+    return;
+  if (PC == size + 1 || PC == size + 2)
+  {
+    printf("                               ");
+    execute();
+    return;
+  }
+  opcode = (instruction >> 12) & 0b1111;
+  R1 = (instruction >> 6) & 0b111111;
+  R2_Im = (instruction) & 0b111111;
+  printf("Decode Stage: Instruction %d    ", counter - 1);
+  printf("\nInstruction: %s R%d R%d\n", instructionMap[opcode], binaryToInt(R1), binaryToInt(R2_Im));
+  printf("Output: NULL\n");
+  printf("Input Values: R%d R%d\n", binaryToInt(R1), binaryToInt(R2_Im));
+  if (counter < 3)
+    printf("\n");
+  execute();
+  instructionToBeExecuted[0] = opcode;
+  instructionToBeExecuted[1] = R1;
+  instructionToBeExecuted[2] = R2_Im;
+}
+
+void instructionFetch()
+{
+  short int instruction;
+  if (PC == size || PC == size + 1)
+  {
+    printf("                              ");
+    instructionDecode();
+    return;
+  }
+
+  instruction = instructionMem[PC++];
+  printf("Fetch Stage: Instruction %d    ", counter);
+  if (counter < 2)
+    printf("\n");
+  instructionDecode();
+  counter++;
+  instructionToBeDecoded = instruction;
+} // ts kinda useless 💔💔💔
 
 int main()
 {
-  // if there is something in the description i didnt implement/realize was there, tell me 🙏🙏🙏
+  printf("testing");
+  PC = 0;
+  const char *filename = "C:\\Users\\omars\\Desktop\\CA Project\\Computer-Architecture-Sem-6-Project\\input.txt";
+  FILE *filePointer = fopen(filename, "r");
+
+  if (filePointer == NULL)
+    printf("\nError opening input.txt\n");
+  GetInstructions(filePointer);
+  for (int i = 0; i < size; i++)
+    instructionFetch();
+
+  instructionFetch();
+  PC++;
+  instructionFetch();
 }
