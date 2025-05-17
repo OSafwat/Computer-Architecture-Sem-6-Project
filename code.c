@@ -200,30 +200,9 @@ void GetInstructions(FILE *fptr)
   fclose(fptr);
 }
 
-// char *GetInstruction(FILE *file, int line_number)
-// {
-//   if (file == NULL || line_number < 1)
-//     return NULL;
-
-//   static char buffer[99];
-//   int current_line = 1;
-
-//   rewind(file);
-
-//   while (fgets(buffer, sizeof(buffer), file))
-//   {
-//     if (current_line == line_number)
-//     {
-//       return buffer;
-//     }
-//     current_line++;
-//   }
-
-//   return NULL;
-// }
 
 void execute()
-{ // Didnt implement SREG Flags!!!
+{ 
   int opcode = instructionToBeExecuted[0];
   int R1 = instructionToBeExecuted[1];
   int R2, Imm;
@@ -231,9 +210,6 @@ void execute()
   short int result = 0;
   bool logicalOrArithmetic = true;
   int8_t newValue = 0;
-  // the sign bit of the 2 before adding
-  // if equal, then check the sign bit of the result of adding
-  // if its different then overflow occured
   if (opcode == -1)
     return;
   switch (opcode)
@@ -331,7 +307,7 @@ void printinfo()
 // special purpose including the PC and SREG), and the full instruction and data memory
 // locations.
 long binaryStringToNumber(const char *binaryString)
-{
+{ //AI
   if (binaryString == NULL || binaryString[0] == '\0')
   {
     return 0; // Handle null or empty string
@@ -411,7 +387,7 @@ int main()
 {
   printf("testing");
   PC = 0;
-  const char *filename = "C:\\Users\\omars\\Desktop\\CA Project\\Computer-Architecture-Sem-6-Project\\input.txt";
+  const char *filename = "input.txt";
   FILE *filePointer = fopen(filename, "r");
 
   if (filePointer == NULL)
