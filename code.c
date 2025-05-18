@@ -10,7 +10,7 @@ int8_t GPRS[64];
 int8_t SREG[8];
 short int PC;
 int size;
-long Cycle = 0; // this determines what cycle we are in right now used for scheduling the different tasks.
+long Cycle = 0; // determine cycle for scheduling the different tasks.
 char *instructionMap[12] = {"ADD", "SUB", "MUL", "LDI", "BEQZ", "AND", "OR", "JR", "SLC", "SRC", "LB", "SB"};
 int counter = 1;
 
@@ -203,95 +203,156 @@ void GetInstructions(FILE *fptr)
 
 void execute()
 { 
-  int opcode = instructionToBeExecuted[0];
-  int R1 = instructionToBeExecuted[1];
-  int R2, Imm;
-  R2 = Imm = instructionToBeExecuted[2];
-  short int result = 0;
-  bool logicalOrArithmetic = true;
-  int8_t newValue = 0;
-  if (opcode == -1)
-    return;
-  switch (opcode)
-  {
-  case (0b0):
-    result = GPRS[R1] + GPRS[R2];
-    if (result & (1 << 8))
-      SREG[4] = 1;
-    newValue = result & ((1 << 8) - 1);
-    if (!(((GPRS[R1] ^ GPRS[R2]) & (1 << 7))) && (((newValue ^ GPRS[R2]) & (1 << 7))))
-      SREG[3] = 1;
-    GPRS[R1] = newValue;
-    break;
-  case (0b1):
-    result = GPRS[R1] - GPRS[R2];
-    if (result & (1 << 8))
-      SREG[4] = 1;
-    newValue = result & ((1 << 8) - 1);
-    if ((((GPRS[R1] ^ GPRS[R2]) & (1 << 7))) && !(((newValue ^ GPRS[R2]) & (1 << 7))))
-      SREG[3] = 1;
-    GPRS[R1] = newValue;
-    break;
-  case (0b10):
-    result = GPRS[R1] * GPRS[R2];
-    GPRS[R1] *= GPRS[R2];
-    break;
-  case (0b11):
-    logicalOrArithmetic = false;
-    GPRS[R1] = Imm;
-    break;
-  case (0b100):
-    logicalOrArithmetic = false;
-    if (R1 == 0)
-      PC += 1 + Imm;
-    break;
-  case (0b101):
-    result = GPRS[R1] & GPRS[R2];
-    GPRS[R1] &= GPRS[R2];
-    break;
-  case (0b110):
-    result = GPRS[R1] | GPRS[R2];
-    GPRS[R1] |= GPRS[R2];
-    break;
-  case (0b111):
-    PC = (GPRS[R1] << 8) | GPRS[R2];
-    logicalOrArithmetic = false;
-    break;
-  case (0b1000):
-    result = (GPRS[R1] << Imm) | (GPRS[R1] >> (8 - Imm));
-    GPRS[R1] = (GPRS[R1] << Imm) | (GPRS[R1] >> (8 - Imm));
-    break;
-  case (0b1001):
-    result = (GPRS[R1] >> Imm) | (GPRS[R1] << (8 - Imm));
-    GPRS[R1] = (GPRS[R1] >> Imm) | (GPRS[R1] << (8 - Imm));
-    break;
-  case (0b1010):
-    logicalOrArithmetic = false;
-    GPRS[R1] = dataMem[Imm];
-    break;
-  case (0b1011):
-    logicalOrArithmetic = false;
-    dataMem[Imm] = R1;
-    break;
-  }
+    int opcode = instructionToBeExecuted[0];
+    int R1     = instructionToBeExecuted[1];
+    int R2, Imm;
+    R2 = Imm = instructionToBeExecuted[2];
+    short int result = 0;
+    bool logicalOrArithmetic = true;
+    int8_t newValue = 0;
 
-  if (logicalOrArithmetic)
-  {
-    if (result & (1 << 8))
-      SREG[2] = 1;
-    else
-      SREG[2] = 0;
+    if (opcode == -1)
+        return;
 
-    if (!(result & ((1 << 8) - 1)))
-      SREG[0] = 1;
-    else
-      SREG[0] = 0;
+    switch (opcode)
+    {
+    case 0b0: {  // ADD
+        result   = GPRS[R1] + GPRS[R2];
+        if (result & (1 << 8))     SREG[4] = 1;
+        newValue = result & ((1 << 8) - 1);
+        if (!(((GPRS[R1] ^ GPRS[R2]) & (1 << 7))) &&
+             (((newValue   ^ GPRS[R2]) & (1 << 7))))
+            SREG[3] = 1;
 
-    SREG[1] = SREG[3] ^ SREG[2];
-  }
+        {   // reg write & log
+            int8_t old   = GPRS[R1];
+            GPRS[R1]     = newValue;
+            logChange("EXEC", "R", R1, old, GPRS[R1]);
+        }
+        break;
+    }
+    case 0b1: {  // SUB
+        result   = GPRS[R1] - GPRS[R2];
+        if (result & (1 << 8))     SREG[4] = 1;
+        newValue = result & ((1 << 8) - 1);
+        if ( ((GPRS[R1] ^ GPRS[R2]) & (1 << 7)) &&
+            !(((newValue  ^ GPRS[R2]) & (1 << 7))) )
+            SREG[3] = 1;
 
-  printf("Execute Stage: Instruction %d    \n", counter - 2);
+        {
+            int8_t old = GPRS[R1];
+            GPRS[R1]   = newValue;
+            logChange("EXEC", "R", R1, old, GPRS[R1]);
+        }
+        break;
+    }
+    case 0b10: { // MUL
+        result = GPRS[R1] * GPRS[R2];
+        {
+            int8_t old = GPRS[R1];
+            GPRS[R1]   = GPRS[R1] * GPRS[R2];
+            logChange("EXEC", "R", R1, old, GPRS[R1]);
+        }
+        break;
+    }
+    case 0b11: { // LDI
+        logicalOrArithmetic = false;
+        {
+            int8_t old = GPRS[R1];
+            GPRS[R1]   = Imm;
+            logChange("EXEC", "R", R1, old, GPRS[R1]);
+        }
+        break;
+    }
+    case 0b100: { // BEQZ
+        logicalOrArithmetic = false;
+        if (GPRS[R1] == 0) {
+            int oldPC = PC;
+            PC += 1 + Imm;
+            logChange("EXEC", "PC", 0, oldPC, PC);
+        }
+        break;
+    }
+    case 0b101: { // AND
+        result = GPRS[R1] & GPRS[R2];
+        {
+            int8_t old = GPRS[R1];
+            GPRS[R1]   &= GPRS[R2];
+            logChange("EXEC", "R", R1, old, GPRS[R1]);
+        }
+        break;
+    }
+    case 0b110: { // OR
+        result = GPRS[R1] | GPRS[R2];
+        {
+            int8_t old = GPRS[R1];
+            GPRS[R1]   |= GPRS[R2];
+            logChange("EXEC", "R", R1, old, GPRS[R1]);
+        }
+        break;
+    }
+    case 0b111: { // JR
+        {
+            int oldPC = PC;
+            PC = (GPRS[R1] << 8) | GPRS[R2];
+            logicalOrArithmetic = false;
+            logChange("EXEC", "PC", 0, oldPC, PC);
+        }
+        break;
+    }
+    case 0b1000: { // SLC
+        result   = (GPRS[R1] << Imm) | (GPRS[R1] >> (8 - Imm));
+        {
+            int8_t old = GPRS[R1];
+            GPRS[R1]   = result;
+            logChange("EXEC", "R", R1, old, GPRS[R1]);
+        }
+        break;
+    }
+    case 0b1001: { // SRC
+        result   = (GPRS[R1] >> Imm) | (GPRS[R1] << (8 - Imm));
+        {
+            int8_t old = GPRS[R1];
+            GPRS[R1]   = result;
+            logChange("EXEC", "R", R1, old, GPRS[R1]);
+        }
+        break;
+    }
+    case 0b1010: { // LB
+        logicalOrArithmetic = false;
+        {
+            int8_t old = GPRS[R1];
+            GPRS[R1]   = dataMem[Imm];
+            logChange("EXEC", "R", R1, old, GPRS[R1]);
+        }
+        break;
+    }
+    case 0b1011: { // SB
+        logicalOrArithmetic = false;
+        {
+            int8_t old = dataMem[Imm];
+            dataMem[Imm] = R1;
+            logChange("EXEC", "DM", Imm, old, dataMem[Imm]);
+        }
+        break;
+    }
+    } // end switch
+
+    if (logicalOrArithmetic)
+    {
+        if (result & (1 << 8))       SREG[2] = 1;
+        else                         SREG[2] = 0;
+
+        if (!(result & ((1 << 8) - 1))) SREG[0] = 1;
+        else                             SREG[0] = 0;
+
+        SREG[1] = SREG[3] ^ SREG[2];
+    }
+
+    /* remove old printf; add unified log of EXEC stage */
+    logStage("EXEC", instructionMap[opcode], opcode, R1, R2, result);
 }
+
 
 void printinfo()
 {
@@ -362,26 +423,78 @@ void instructionDecode()
   instructionToBeExecuted[0] = opcode;
   instructionToBeExecuted[1] = R1;
   instructionToBeExecuted[2] = R2_Im;
+
+  logStage("DECODE", instructionMap[opcode], instruction, R1, R2_Im, 0);
+
 }
+
 
 void instructionFetch()
 {
-  short int instruction;
-  if (PC == size || PC == size + 1)
-  {
-    printf("                              ");
-    instructionDecode();
-    return;
-  }
+    
+    Cycle++;
 
-  instruction = instructionMem[PC++];
-  printf("Fetch Stage: Instruction %d    ", counter);
-  if (counter < 2)
-    printf("\n");
-  instructionDecode();
-  counter++;
-  instructionToBeDecoded = instruction;
-} // ts kinda useless 💔💔💔
+    short int instruction;
+    if (PC == size || PC == size + 1)
+    {
+        
+        printf("[Cycle %ld] Fetch Stage: bubble\n", Cycle);
+        instructionDecode();
+        return;
+    }
+
+    
+    instruction = instructionMem[PC++];
+
+    
+    printf("[Cycle %ld] Fetch Stage: Instruction %d    Input: PC=%d    Output: inst=0x%04X\n",
+           Cycle, counter, PC-1, instruction);
+
+    if (counter < 2)
+        printf("\n");
+
+    instructionDecode();
+    counter++;
+    instructionToBeDecoded = instruction;
+}
+ // ts kinda useless 💔💔💔
+
+
+
+  
+void logStage(const char *stage, const char *msg, short int  rawInst, int v1, int v2, int result)
+{
+    printf("\n[Cycle %ld] %-8s | %-24s | IN:0x%04X V1:%d V2:%d  OUT:%d\n",
+           Cycle, stage, msg, rawInst, v1, v2, result);
+}
+
+// register  memory change tracker
+void logChange(const char *stage, const char *what, int idx, int oldVal, int newVal)
+{
+    if (oldVal != newVal)
+        printf("          ↳ %-8s changed %-4s[%d] : %d → %d\n",
+               stage, what, idx, oldVal, newVal);
+}
+
+// print final state
+void dumpFinalState(void)
+{
+    puts("\n-----------  FINAL STATE   -------------");
+    printf("PC  = %d\n", PC);
+    printf("SREG= ");
+    for (int i = 7; i >= 0; --i) printf("%d", SREG[i]);
+    puts("\n\n-- General-purpose registers -----------------------------");
+    for (int i = 0; i < 64; ++i)
+        printf("R%-2d = %-4d%s", i, GPRS[i], (i % 8 == 7) ? "\n" : "  ");
+    puts("\n-- Instruction Memory -----------------------------------");
+    for (int i = 0; i < size; ++i)
+        printf("IM[%3d] = %d\n", i, instructionMem[i]);
+    puts("-- Data Memory ------------------------------------------");
+    for (int i = 0; i < 2048; ++i)
+        if (dataMem[i])                                 /* only non-zero   */
+            printf("DM[%4d] = %d\n", i, dataMem[i]);
+}
+
 
 int main()
 {
@@ -399,4 +512,7 @@ int main()
   instructionFetch();
   PC++;
   instructionFetch();
+
+  dumpFinalState();
+
 }

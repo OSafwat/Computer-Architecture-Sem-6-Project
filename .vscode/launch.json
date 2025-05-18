@@ -11,7 +11,7 @@
       "cwd": "${workspaceFolder}",
       "externalConsole": true,
       "MIMode": "gdb",
-      "miDebuggerPath": "gdb",
+      "miDebuggerPath": "C:/MinGW/bin/gdb.exe",
       "setupCommands": [
         {
           "description": "Enable pretty-printing",
@@ -27,10 +27,10 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/Users/mosta/Documents/Github Projects/Computer-Architecture-Sem-6-Project",
-      "program": "c:/Users/mosta/Documents/Github Projects/Computer-Architecture-Sem-6-Project/build/Debug/outDebug",
+      "cwd": "c:/Users/youss/OneDrive/Documents/Computer-Architecture-Sem-6-Project",
+      "program": "c:/Users/youss/OneDrive/Documents/Computer-Architecture-Sem-6-Project/code.exe",
       "MIMode": "gdb",
-      "miDebuggerPath": "gdb",
+      "miDebuggerPath": "C:/MinGW/bin/gdb.exe",
       "setupCommands": [
         {
           "description": "Enable pretty-printing for gdb",
