@@ -461,7 +461,7 @@ void instructionFetch()
 
 
 
-  
+
 void logStage(const char *stage, const char *msg, short int  rawInst, int v1, int v2, int result)
 {
     printf("\n[Cycle %ld] %-8s | %-24s | IN:0x%04X V1:%d V2:%d  OUT:%d\n",
@@ -500,7 +500,7 @@ int main()
 {
   printf("testing");
   PC = 0;
-  const char *filename = "input.txt";
+  const char *filename = "C:\\Users\\youss\\OneDrive\\Documents\\Computer-Architecture-Sem-6-Project\\input.txt";
   FILE *filePointer = fopen(filename, "r");
 
   if (filePointer == NULL)
