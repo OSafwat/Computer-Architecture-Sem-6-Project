@@ -10,7 +10,7 @@ int8_t GPRS[64];
 int8_t SREG[8];
 short int PC;
 int size;
-long Cycle = 0; // determine cycle for scheduling the different tasks.
+long Cycle = 0;
 char *instructionMap[12] = {"ADD", "SUB", "MUL", "LDI", "BEQZ", "AND", "OR", "JR", "SLC", "SRC", "LB", "SB"};
 int counter = 1;
 bool flushed = false;
@@ -19,7 +19,7 @@ short int instructionToBeDecoded = -1;
 short int instructionToBeExecuted[3] = {-1, -1, -1};
 
 short int binaryStringToShort(const char *binaryString)
-{ // ts Also AI, also didnt check its correctness
+{
   if (binaryString == NULL || *binaryString == '\0')
     return 0; // Handle null or empty string
 
@@ -31,7 +31,7 @@ short int binaryStringToShort(const char *binaryString)
   return (short int)(result);
 }
 
-// register  memory change tracker
+// register memory change tracker
 void logChange(const char *stage, const char *what, int idx, int oldVal, int newVal)
 {
   if (oldVal != newVal)
@@ -119,7 +119,6 @@ short int encode(char *inst)
 { // instructions must be encoded (as bin, dec, or String) before it can be used
   bool isImm = false;
   char *temp = strtok(inst, " ");
-  printf("\n%s\n", temp);
   char *ans;
   if (strcmp(temp, "ADD") == 0)
     ans = "0000";
@@ -165,18 +164,13 @@ short int encode(char *inst)
   }
 
   char *check = strtok(NULL, " ");
-  printf("%s\n", check);
   char *R1 = RToBinaryString(check);
   check = strtok(NULL, " ");
-  printf("%s\n", check);
   char *R2;
   if (isImm)
     R2 = intToBinaryString(atoi(check));
   else
     R2 = RToBinaryString(check);
-  printf("%s\n", R1);
-  printf("%s\n", R2);
-  printf("%s\n", ans);
   char finalAns[17];
   strcpy(finalAns, ans);
   strcat(finalAns, R1);
@@ -371,21 +365,8 @@ void execute()
   logStage("EXEC", instructionMap[opcode], opcode, R1, R2, result);
 }
 
-void printinfo()
-{
-}
-// For each clock cycle, you need to print which instruction is in each stage, as well as, the values
-// that entered the stage, and the output of this stage.
-
-//  Moreover, if you changed the value of a location in the memory or the register file, you
-// need to print that this location or register (including R0) value has changed alongside the
-// new value (and in which stage did the value change).
-
-//  At the end of your program, you need to print the values of all registers (general and
-// special purpose including the PC and SREG), and the full instruction and data memory
-// locations.
 long binaryStringToNumber(const char *binaryString)
-{ // AI
+{
   if (binaryString == NULL || binaryString[0] == '\0')
   {
     return 0; // Handle null or empty string
@@ -479,7 +460,6 @@ void instructionFetch()
     flushed = false;
   }
 }
-// ts kinda useless 💔💔💔
 
 // print final state
 void dumpFinalState(void)
@@ -503,7 +483,6 @@ void dumpFinalState(void)
 
 int main()
 {
-  printf("testing");
   PC = 0;
   const char *filename = "C:\\Users\\omars\\Desktop\\CA Project\\Computer-Architecture-Sem-6-Project\\input.txt";
   FILE *filePointer = fopen(filename, "r");
