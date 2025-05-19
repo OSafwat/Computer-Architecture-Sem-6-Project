@@ -208,7 +208,6 @@ void execute()
   short int result = 0;
   bool logicalOrArithmetic = true;
   int8_t newValue = 0;
-
   if (opcode == -1)
     return;
 
@@ -355,7 +354,7 @@ void execute()
 
   if (logicalOrArithmetic)
   {
-    if (result & (1 << 8))
+    if (result & (1 << 7))
       SREG[2] = 1;
     else
       SREG[2] = 0;
