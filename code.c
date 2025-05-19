@@ -430,10 +430,14 @@ void instructionDecode()
   opcode = (instruction >> 12) & 0b1111;
   R1 = (instruction >> 6) & 0b111111;
   R2_Im = (instruction) & 0b111111;
+  bool isImm = opcode == 3 || opcode == 4 || opcode == 8 || opcode == 9 || opcode == 10 || opcode == 11;
   printf("Decode Stage: Instruction %d    ", counter - 1);
   printf("\nInstruction: %s R%d R%d\n", instructionMap[opcode], binaryToInt(R1), binaryToInt(R2_Im));
   printf("Output: NULL\n");
-  printf("Input Values: R%d R%d\n", binaryToInt(R1), binaryToInt(R2_Im));
+  if (!isImm)
+    printf("Input Values: R%d R%d\n", binaryToInt(R1), binaryToInt(R2_Im));
+  else
+    printf("Input Values: R%d %d\n", binaryToInt(R1), binaryToInt(R2_Im));
   execute();
   instructionToBeExecuted[0] = opcode;
   instructionToBeExecuted[1] = R1;
