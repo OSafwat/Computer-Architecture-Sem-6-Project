@@ -266,8 +266,8 @@ void execute()
     logicalOrArithmetic = false;
     if (GPRS[R1] == 0)
     {
-      int oldPC = PC;
-      PC += 1 + Imm;
+      int oldPC = PC - 2;
+      PC = oldPC + Imm;
       logChange("EXEC", "PC", 0, oldPC, PC);
       flushed = true;
     }
@@ -362,6 +362,8 @@ void execute()
       SREG[1] = SREG[3] ^ SREG[2];
   }
 
+  instructionToBeExecuted[0] = instructionToBeExecuted[1] = instructionToBeExecuted[2] = -1;
+
   logStage("EXEC", instructionMap[opcode], opcode, R1, R2, result);
 }
 
@@ -402,12 +404,6 @@ void instructionDecode()
   int R2_Im; // this can be either immediate or R2 according to instruction type since they both occupy up the same bits
   if (instruction == -1)
     return;
-  if (PC == size + 1 || PC == size + 2)
-  {
-    printf("                               ");
-    execute();
-    return;
-  }
   opcode = (instruction >> 12) & 0b1111;
   R1 = (instruction >> 6) & 0b111111;
   R2_Im = (instruction) & 0b111111;
@@ -428,6 +424,8 @@ void instructionDecode()
     instructionToBeExecuted[0] = instructionToBeExecuted[1] = instructionToBeExecuted[2] = -1;
   }
 
+  instructionToBeDecoded = -1;
+
   logStage("DECODE", instructionMap[opcode], instruction, R1, R2_Im, 0);
 }
 
@@ -437,7 +435,7 @@ void instructionFetch()
   Cycle++;
 
   short int instruction;
-  if (PC == size || PC == size + 1)
+  if (PC >= size)
   {
 
     printf("[Cycle %ld] Fetch Stage: bubble\n", Cycle);
@@ -490,12 +488,13 @@ int main()
   if (filePointer == NULL)
     printf("\nError opening input.txt\n");
   GetInstructions(filePointer);
-  for (int i = 0; i < size; i++)
+  while (PC < size)
     instructionFetch();
-
-  instructionFetch();
-  PC++;
-  instructionFetch();
+  execute();
+  instructionDecode();
+  execute();
+  instructionDecode();
+  execute();
 
   dumpFinalState();
 }
