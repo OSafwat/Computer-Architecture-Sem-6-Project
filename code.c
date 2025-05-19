@@ -31,18 +31,24 @@ short int binaryStringToShort(const char *binaryString)
   return (short int)(result);
 }
 
-// register memory change tracker
-void logChange(const char *stage, const char *what, int idx, int oldVal, int newVal)
-{
-  if (oldVal != newVal)
-    printf("          ↳ %-8s changed %-4s[%d] : %d → %d\n",
-           stage, what, idx, oldVal, newVal);
-}
-
 void logStage(const char *stage, const char *msg, short int rawInst, int v1, int v2, int result)
 {
-  printf("\n[Cycle %ld] %-8s | %-24s | IN:0x%04X V1:%d V2:%d  OUT:%d\n",
+  printf("[Cycle %ld] %-8s | %-24s | IN:0x%04X V1:%d V2:%d  OUT:%d\n",
          Cycle, stage, msg, rawInst, v1, v2, result);
+
+  if (!strcmp(stage, "DECODE"))
+    printf("\n");
+}
+
+// register memory change tracker
+void logChange(const char *stage, const char *what, int idx, int oldVal, int newVal, int opcode, int R1, int R2, int result)
+{
+  logStage("EXEC", instructionMap[opcode], opcode, R1, R2, result);
+  if (oldVal != newVal)
+    printf("          ↳ %-8s changed %-4s[%d] : %d → %d\n\n",
+           stage, what, idx, oldVal, newVal);
+  else
+    printf("\n");
 }
 
 char *intToBinaryString(int num)
@@ -59,7 +65,7 @@ char *intToBinaryString(int num)
   binary[6] = '\0';
   return binary;
 }
-char *RToBinaryString(const char *RString)
+char *RToBinaryString(char *RString)
 {
   if (RString == NULL || RString[0] != 'R')
   {
@@ -67,9 +73,10 @@ char *RToBinaryString(const char *RString)
   }
 
   // Extract the number part of the string
-  char *sub = (char *)malloc(strlen(RString));
-  char *numberString = strncpy(sub, RString + 1, strlen(RString) - 1); // Pointer to the character after 'R'
-  long number = strtol(numberString, NULL, 10);                        // Convert to long
+  char *numberString = malloc(strlen(RString));
+  strncpy(numberString, RString + 1, strlen(RString) - 1); // Pointer to the character after 'R'
+  numberString[strlen(RString) - 1] = '\0';
+  long number = strtol(numberString, NULL, 10); // Convert to long
 
   if (number == 0)
   {
@@ -100,7 +107,7 @@ char *RToBinaryString(const char *RString)
   }
 
   // Allocate memory for the binary string
-  char *binaryString = malloc(bits + 1); // +1 for the null terminator
+  char *binaryString = malloc(7); // +1 for the null terminator
   if (binaryString == NULL)
   {
     return NULL; // Handle allocation failure
@@ -204,15 +211,28 @@ void execute()
   int8_t newValue = 0;
   if (opcode == -1)
     return;
-
+  bool logged = false;
   switch (opcode)
   {
   case 0b0:
   { // ADD
+
     result = GPRS[R1] + GPRS[R2];
-    if (result & (1 << 8))
+
+    // this block is for carry flag
+    long temp1 = GPRS[R1];
+    long temp2 = GPRS[R2];
+    temp1 &= 0x000000FF;
+    temp2 &= 0x000000FF;
+    long carryResult = (temp1 & 0x000000FF) + (temp2 & 0x000000FF);
+    if (carryResult & (1 << 8))
       SREG[4] = 1;
+    else
+      SREG[4] = 0;
+
     newValue = result & ((1 << 8) - 1);
+
+    // for overflow flag
     if (!(((GPRS[R1] ^ GPRS[R2]) & (1 << 7))) &&
         (((newValue ^ GPRS[R2]) & (1 << 7))))
       SREG[3] = 1;
@@ -220,7 +240,8 @@ void execute()
     { // reg write & log
       int8_t old = GPRS[R1];
       GPRS[R1] = newValue;
-      logChange("EXEC", "R", R1, old, GPRS[R1]);
+      logged = true;
+      logChange("EXEC", "R", R1, old, GPRS[R1], opcode, R1, R2, result);
     }
     break;
   }
@@ -237,7 +258,8 @@ void execute()
     {
       int8_t old = GPRS[R1];
       GPRS[R1] = newValue;
-      logChange("EXEC", "R", R1, old, GPRS[R1]);
+      logged = true;
+      logChange("EXEC", "R", R1, old, GPRS[R1], opcode, R1, R2, result);
     }
     break;
   }
@@ -247,7 +269,8 @@ void execute()
     {
       int8_t old = GPRS[R1];
       GPRS[R1] = GPRS[R1] * GPRS[R2];
-      logChange("EXEC", "R", R1, old, GPRS[R1]);
+      logged = true;
+      logChange("EXEC", "R", R1, old, GPRS[R1], opcode, R1, R2, result);
     }
     break;
   }
@@ -257,7 +280,8 @@ void execute()
     {
       int8_t old = GPRS[R1];
       GPRS[R1] = Imm;
-      logChange("EXEC", "R", R1, old, GPRS[R1]);
+      logged = true;
+      logChange("EXEC", "R", R1, old, GPRS[R1], opcode, R1, R2, result);
     }
     break;
   }
@@ -268,7 +292,8 @@ void execute()
     {
       int oldPC = PC - 2;
       PC = oldPC + Imm;
-      logChange("EXEC", "PC", 0, oldPC, PC);
+      logged = true;
+      logChange("EXEC", "PC", 0, oldPC, PC, opcode, R1, R2, result);
       flushed = true;
     }
     break;
@@ -279,7 +304,8 @@ void execute()
     {
       int8_t old = GPRS[R1];
       GPRS[R1] &= GPRS[R2];
-      logChange("EXEC", "R", R1, old, GPRS[R1]);
+      logged = true;
+      logChange("EXEC", "R", R1, old, GPRS[R1], opcode, R1, R2, result);
     }
     break;
   }
@@ -289,7 +315,8 @@ void execute()
     {
       int8_t old = GPRS[R1];
       GPRS[R1] |= GPRS[R2];
-      logChange("EXEC", "R", R1, old, GPRS[R1]);
+      logged = true;
+      logChange("EXEC", "R", R1, old, GPRS[R1], opcode, R1, R2, result);
     }
     break;
   }
@@ -299,7 +326,8 @@ void execute()
       int oldPC = PC;
       PC = (GPRS[R1] << 8) | GPRS[R2];
       logicalOrArithmetic = false;
-      logChange("EXEC", "PC", 0, oldPC, PC);
+      logged = true;
+      logChange("EXEC", "PC", 0, oldPC, PC, opcode, R1, R2, result);
       flushed = true;
     }
     break;
@@ -310,7 +338,8 @@ void execute()
     {
       int8_t old = GPRS[R1];
       GPRS[R1] = result;
-      logChange("EXEC", "R", R1, old, GPRS[R1]);
+      logged = true;
+      logChange("EXEC", "R", R1, old, GPRS[R1], opcode, R1, R2, result);
     }
     break;
   }
@@ -320,7 +349,8 @@ void execute()
     {
       int8_t old = GPRS[R1];
       GPRS[R1] = result;
-      logChange("EXEC", "R", R1, old, GPRS[R1]);
+      logged = true;
+      logChange("EXEC", "R", R1, old, GPRS[R1], opcode, R1, R2, result);
     }
     break;
   }
@@ -330,7 +360,8 @@ void execute()
     {
       int8_t old = GPRS[R1];
       GPRS[R1] = dataMem[Imm];
-      logChange("EXEC", "R", R1, old, GPRS[R1]);
+      logged = true;
+      logChange("EXEC", "R", R1, old, GPRS[R1], opcode, R1, R2, result);
     }
     break;
   }
@@ -340,7 +371,8 @@ void execute()
     {
       int8_t old = dataMem[Imm];
       dataMem[Imm] = GPRS[R1];
-      logChange("EXEC", "DM", Imm, old, dataMem[Imm]);
+      logged = true;
+      logChange("EXEC", "DM", Imm, old, dataMem[Imm], opcode, R1, R2, result);
     }
     break;
   }
@@ -353,18 +385,15 @@ void execute()
     else
       SREG[2] = 0;
 
-    if (!(result & ((1 << 8) - 1)))
-      SREG[0] = 1;
-    else
-      SREG[0] = 0;
+    SREG[0] = result == 0;
 
     if (opcode == 0 || opcode == 1)
       SREG[1] = SREG[3] ^ SREG[2];
   }
 
   instructionToBeExecuted[0] = instructionToBeExecuted[1] = instructionToBeExecuted[2] = -1;
-
-  logStage("EXEC", instructionMap[opcode], opcode, R1, R2, result);
+  if (!logged)
+    logStage("EXEC", instructionMap[opcode], opcode, R1, R2, result);
 }
 
 long binaryStringToNumber(const char *binaryString)
@@ -408,12 +437,12 @@ void instructionDecode()
   R1 = (instruction >> 6) & 0b111111;
   R2_Im = (instruction) & 0b111111;
   bool isImm = opcode == 3 || opcode == 4 || opcode == 8 || opcode == 9 || opcode == 10 || opcode == 11;
-  printf("Decode Stage: Instruction %d    ", counter - 1);
-  printf("Output: NULL\n");
+  printf("[Cycle %ld] Decode Stage: Instruction %d    ", Cycle, counter - 1);
   if (!isImm)
-    printf("Input Values: R%d R%d\n", binaryToInt(R1), binaryToInt(R2_Im));
+    printf("Input Values: R%d R%d\n\n", binaryToInt(R1), binaryToInt(R2_Im));
   else
-    printf("Input Values: R%d %d\n", binaryToInt(R1), binaryToInt(R2_Im));
+    printf("Input Values: R%d %d\n\n", binaryToInt(R1), binaryToInt(R2_Im));
+  logStage("DECODE", instructionMap[opcode], instruction, R1, R2_Im, 0);
   execute();
   instructionToBeExecuted[0] = opcode;
   instructionToBeExecuted[1] = R1;
@@ -425,8 +454,6 @@ void instructionDecode()
   }
 
   instructionToBeDecoded = -1;
-
-  logStage("DECODE", instructionMap[opcode], instruction, R1, R2_Im, 0);
 }
 
 void instructionFetch()
@@ -438,17 +465,16 @@ void instructionFetch()
   if (PC >= size)
   {
 
-    printf("[Cycle %ld] Fetch Stage: bubble\n", Cycle);
+    printf("[Cycle %ld] Fetch Stage: bubble\n\n", Cycle);
     instructionDecode();
     return;
   }
-
-  instruction = instructionMem[PC++];
-
-  printf("[Cycle %ld] Fetch Stage: Instruction %d    Input: PC=%d    Output: inst=0x%04X\n",
-         Cycle, counter, PC - 1, instruction);
+  printf("[Cycle %ld] Fetch Stage: Instruction %d    Input: PC=%d    Output: inst=0x%04X\n\n",
+         Cycle, counter, PC, instruction);
 
   instructionDecode();
+
+  instruction = instructionMem[PC++];
 
   counter++;
   instructionToBeDecoded = instruction;
@@ -473,7 +499,7 @@ void dumpFinalState(void)
   puts("\n-- Instruction Memory -----------------------------------");
   for (int i = 0; i < size; ++i)
     printf("IM[%d] = %d\n", i, instructionMem[i]);
-  puts("-- Data Memory ------------------------------------------");
+  puts("\n-- Data Memory ------------------------------------------");
   for (int i = 0; i < 2048; ++i)
     if (dataMem[i]) /* only non-zero   */
       printf("DM[%d] = %d\n", i, dataMem[i]);
@@ -498,3 +524,8 @@ int main()
 
   dumpFinalState();
 }
+
+//[Cycle 20] Decode Stage: Instruction 19    Input Values: R8 2
+
+//[Cycle 20] DECODE   | SLC                      | IN:0xFFFF8202 V1:8 V2:2  OUT:0
+//
