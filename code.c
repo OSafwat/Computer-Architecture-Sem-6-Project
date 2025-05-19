@@ -73,10 +73,10 @@ char *RToBinaryString(const char *RString)
 
   if (number == 0)
   {
-    char *binaryString = malloc(4);
+    char *binaryString = malloc(7);
     if (binaryString == NULL)
       return NULL;
-    strcpy(binaryString, "0");
+    strcpy(binaryString, "000000");
     return binaryString;
   }
 
@@ -432,7 +432,6 @@ void instructionDecode()
   R2_Im = (instruction) & 0b111111;
   bool isImm = opcode == 3 || opcode == 4 || opcode == 8 || opcode == 9 || opcode == 10 || opcode == 11;
   printf("Decode Stage: Instruction %d    ", counter - 1);
-  printf("\nInstruction: %s R%d R%d\n", instructionMap[opcode], binaryToInt(R1), binaryToInt(R2_Im));
   printf("Output: NULL\n");
   if (!isImm)
     printf("Input Values: R%d R%d\n", binaryToInt(R1), binaryToInt(R2_Im));
