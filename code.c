@@ -364,7 +364,8 @@ void execute()
     else
       SREG[0] = 0;
 
-    SREG[1] = SREG[3] ^ SREG[2];
+    if (opcode == 0 || opcode == 1)
+      SREG[1] = SREG[3] ^ SREG[2];
   }
 
   logStage("EXEC", instructionMap[opcode], opcode, R1, R2, result);
