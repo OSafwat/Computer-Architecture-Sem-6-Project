@@ -77,6 +77,7 @@ char *RToBinaryString(char *RString)
   strncpy(numberString, RString + 1, strlen(RString) - 1); // Pointer to the character after 'R'
   numberString[strlen(RString) - 1] = '\0';
   long number = strtol(numberString, NULL, 10); // Convert to long
+  free(numberString);
 
   if (number == 0)
   {
