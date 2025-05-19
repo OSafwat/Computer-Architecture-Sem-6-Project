@@ -439,7 +439,6 @@ void instructionFetch()
   short int instruction;
   if (PC == size || PC == size + 1)
   {
-
     printf("[Cycle %ld] Fetch Stage: bubble\n", Cycle);
     instructionDecode();
     return;
