@@ -325,7 +325,7 @@ void execute()
   { // JR
     {
       int oldPC = PC;
-      PC = (GPRS[R1] << 8) | GPRS[R2];
+      PC = ((GPRS[R1] & (0b1111 << 4)) | (GPRS[R2] & 0b1111)) - 1;
       logicalOrArithmetic = false;
       logged = true;
       logChange("EXEC", "PC", 0, oldPC, PC, opcode, R1, R2, result);
@@ -443,8 +443,19 @@ void instructionDecode()
     printf("Input Values: R%d R%d\n\n", binaryToInt(R1), binaryToInt(R2_Im));
   else
     printf("Input Values: R%d %d\n\n", binaryToInt(R1), binaryToInt(R2_Im));
+
+  if (isImm && (R2_Im & (1 << 5)))
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      R2_Im ^= (1 << i);
+    }
+    R2_Im++;
+    R2_Im = -R2_Im;
+  }
   logStage("DECODE", instructionMap[opcode], instruction, R1, R2_Im, 0);
   execute();
+
   instructionToBeExecuted[0] = opcode;
   instructionToBeExecuted[1] = R1;
   instructionToBeExecuted[2] = R2_Im;
@@ -484,6 +495,11 @@ void instructionFetch()
     instructionToBeDecoded = -1;
     flushed = false;
   }
+
+  printf("\nSREG= ");
+  for (int i = 7; i >= 0; --i)
+    printf("%d", SREG[i]);
+  printf("\n");
 }
 
 // print final state
