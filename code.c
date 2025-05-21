@@ -446,12 +446,8 @@ void instructionDecode()
 
   if (isImm && (R2_Im & (1 << 5)))
   {
-    for (int i = 0; i < 6; i++)
-    {
-      R2_Im ^= (1 << i);
-    }
-    R2_Im++;
-    R2_Im = -R2_Im;
+    R2_Im ^= (0b111111);
+    R2_Im = -(R2_Im + 1);
   }
   logStage("DECODE", instructionMap[opcode], instruction, R1, R2_Im, 0);
   execute();
